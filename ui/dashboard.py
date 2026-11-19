@@ -133,4 +133,6 @@ def render_dashboard(state: dict) -> None:
             if neg_point:
                 render_negotiation_card(neg_point)
             else:
-                st.info("No counter-negotiation points required for this clause.")
+                clause_title = item.get("title") or item.get("clause_title", "Contract Clause")
+                with st.expander(f"🤝 Counter-Wording: {clause_title}", expanded=False):
+                    st.success("✅ Standard balanced clause. No counter-negotiation points required.")

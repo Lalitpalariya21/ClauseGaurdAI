@@ -52,17 +52,12 @@ def render_page_reference(page: int) -> None:
 # ── Clause Card ───────────────────────────────────────────────────────────────
 
 def render_clause_card(clause: dict) -> None:
-    """Render an expander card for a single extracted clause.
-
-    Expected keys in *clause*:
-        title (str), clause_type (str), original_text (str),
-        summary (str), page_number (int)
-    """
-    title = clause.get("title", "Untitled Clause")
+    """Render an expander card for a single extracted clause."""
+    title = clause.get("title") or clause.get("clause_title", "Untitled Clause")
     clause_type = clause.get("clause_type", "Unknown")
     original_text = clause.get("original_text", "")
     summary = clause.get("summary", "")
-    page_number = clause.get("page_number", 0)
+    page_number = clause.get("page_number", 1)
 
     with st.expander(f"📋 {title}", expanded=False):
         col_type, col_page = st.columns([3, 1])
@@ -91,39 +86,63 @@ def render_clause_card(clause: dict) -> None:
 # ── Risk Card ─────────────────────────────────────────────────────────────────
 
 def render_risk_card(risk_item: dict) -> None:
-    """Render an expander card for a single risk item.
-
-    Expected keys in *risk_item*:
-        clause_title (str), risk_level (str), concerns (list[str]),
-        checklist (list[dict] with keys 'item' and 'status'),
-        recommended_action (str)
-    """
-    clause_title = risk_item.get("clause_title", "Unknown Clause")
+    """Render an expander card for a single risk item."""
+    clause_title = risk_item.get("title") or risk_item.get("clause_title", "Contract Clause")
     risk_level = risk_item.get("risk_level", "Low")
+    risk_score = risk_item.get("risk_score")
+    clause_type = risk_item.get("clause_type", "")
+    page_number = risk_item.get("page_number", 1)
     concerns = risk_item.get("concerns", [])
-    checklist = risk_item.get("checklist", [])
+    checklist = risk_item.get("checklist", {})
     recommended_action = risk_item.get("recommended_action", "")
+    original_text = risk_item.get("original_text", "")
 
     icon = {"High": "🔴", "Medium": "🟠", "Low": "🟢"}.get(risk_level, "⚪")
 
     with st.expander(f"{icon} {clause_title}", expanded=(risk_level == "High")):
-        render_risk_badge(risk_level)
+        col_badge, col_score, col_page = st.columns([1.5, 1.5, 1])
+        with col_badge:
+            render_risk_badge(risk_level)
+        with col_score:
+            if risk_score is not None:
+                st.markdown(f"**Risk Score:** `{risk_score}/10`")
+        with col_page:
+            render_page_reference(page_number)
+
         st.markdown("")
 
+        if original_text:
+            st.markdown("**🔤 Original Quoted Text**")
+            st.markdown(
+                f'<div style="background:#0f172a;border-left:3px solid #3b82f6;'
+                f'padding:8px 12px;border-radius:4px;font-size:0.83rem;'
+                f'font-family:monospace;white-space:pre-wrap;color:#e2e8f0;margin-bottom:10px;">{original_text}</div>',
+                unsafe_allow_html=True,
+            )
+
         if concerns:
-            st.markdown("**⚠️ Concerns**")
+            st.markdown("**⚠️ Identified Concerns**")
             for concern in concerns:
                 st.markdown(f"- {concern}")
 
         if checklist:
-            st.markdown("**✅ Checklist**")
-            import pandas as pd  # local import to avoid top-level overhead
-            df = pd.DataFrame(checklist)
-            if "status" in df.columns:
-                df["status"] = df["status"].apply(
-                    lambda s: "✅" if str(s).lower() in ("ok", "pass", "✅", "true") else "❌"
-                )
-            st.table(df)
+            st.markdown("**✅ Risk Checklist Assessment**")
+            import pandas as pd
+            if isinstance(checklist, dict):
+                df = pd.DataFrame([
+                    {"Verification Criteria": str(k), "Status": "✅ Pass" if v else "⚠️ Flagged"}
+                    for k, v in checklist.items()
+                ])
+            elif isinstance(checklist, list):
+                df = pd.DataFrame(checklist)
+                if "status" in df.columns:
+                    df["status"] = df["status"].apply(
+                        lambda s: "✅ Pass" if str(s).lower() in ("ok", "pass", "✅", "true") else "⚠️ Flagged"
+                    )
+            else:
+                df = pd.DataFrame()
+            if not df.empty:
+                st.dataframe(df, use_container_width=True, hide_index=True)
 
         if recommended_action:
             st.markdown("**💡 Recommended Action**")
@@ -133,28 +152,28 @@ def render_risk_card(risk_item: dict) -> None:
 # ── Negotiation Card ──────────────────────────────────────────────────────────
 
 def render_negotiation_card(point: dict) -> None:
-    """Render an expander card for a negotiation point.
-
-    Expected keys in *point*:
-        clause_title (str), explanation (str),
-        alternative_wording (str), negotiation_tips (list[str])
-    """
-    clause_title = point.get("clause_title", "Clause")
+    """Render an expander card for a negotiation point."""
+    clause_title = point.get("title") or point.get("clause_title", "Counter-Proposal")
+    priority = point.get("priority", "Medium")
     explanation = point.get("explanation", "")
     alternative_wording = point.get("alternative_wording", "")
     tips = point.get("negotiation_tips", [])
 
-    with st.expander(f"🤝 {clause_title}", expanded=False):
+    with st.expander(f"🤝 Counter-Wording: {clause_title}", expanded=(priority == "High")):
+        if priority:
+            render_risk_badge(priority)
+            st.markdown("")
+
         if explanation:
-            st.markdown("**📖 Plain English Explanation**")
+            st.markdown("**📖 Plain-English Explanation**")
             st.write(explanation)
 
         if alternative_wording:
-            st.markdown("**✏️ Suggested Alternative Wording**")
+            st.markdown("**✏️ Suggested Alternative Wording (Ready to Propose)**")
             st.code(alternative_wording, language="text")
 
         if tips:
-            st.markdown("**💬 Negotiation Tips**")
+            st.markdown("**💬 Tactical Negotiation Tips**")
             for tip in tips:
                 st.markdown(f"- {tip}")
 
@@ -177,13 +196,8 @@ def render_metrics_row(high: int, medium: int, low: int, total: int) -> None:
 # ── Agent Status Card ─────────────────────────────────────────────────────────
 
 def render_agent_status_card(trace_item: dict) -> None:
-    """Render a status card for a single agent execution trace entry.
-
-    Expected keys in *trace_item*:
-        agent_name (str), status (str: 'success'|'error'|'running'),
-        timestamp (str), output_summary (str)
-    """
-    agent_name = trace_item.get("agent_name", "Unknown Agent")
+    """Render a status card for a single agent execution trace entry."""
+    agent_name = trace_item.get("agent_name") or trace_item.get("agent", "Agent")
     status = trace_item.get("status", "running")
     timestamp = trace_item.get("timestamp", "")
     output_summary = trace_item.get("output_summary", "")
@@ -197,7 +211,7 @@ def render_agent_status_card(trace_item: dict) -> None:
         f'<div style="border:1px solid {border_color};border-radius:8px;'
         f'padding:12px 16px;margin-bottom:8px;background:#1e293b;">'
         f'<div style="display:flex;justify-content:space-between;align-items:center;">'
-        f'<span style="font-weight:700;font-size:0.95rem;">🤖 {agent_name}</span>'
+        f'<span style="font-weight:700;font-size:0.95rem;color:#f8fafc;">🤖 {agent_name}</span>'
         f'<span style="font-size:1.1rem;">{status_icon}</span>'
         f'</div>'
         f'<div style="color:#94a3b8;font-size:0.75rem;margin-top:2px;">🕒 {timestamp}</div>'
