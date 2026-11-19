@@ -59,9 +59,9 @@ def init_session_state() -> None:
             st.session_state[key] = value
 
 
-def render_sidebar() -> tuple[str, str, bool]:
+def render_sidebar() -> tuple[str, str]:
     """
-    Render sidebar and return (api_key, selected_model, is_offline).
+    Render sidebar and return (api_key, selected_model).
     """
     with st.sidebar:
         # ── Logo / Title ───────────────────────────────────────────────
@@ -79,56 +79,41 @@ def render_sidebar() -> tuple[str, str, bool]:
         )
         st.divider()
 
-        # ── Engine Selection ───────────────────────────────────────────
-        st.subheader("⚙️ Analysis Engine")
-        engine_choice = st.radio(
-            "Select Processing Mode:",
-            options=[
-                "🛡️ Offline AI Engine (No API Key)",
-                "⚡ Groq Cloud LLM (Requires Key)",
-            ],
-            index=0 if st.session_state.get("use_offline_mode", True) else 1,
-            help="Offline mode runs deterministically on your machine with zero external calls.",
-        )
-        is_offline = "Offline" in engine_choice
-        st.session_state["use_offline_mode"] = is_offline
+        # Check effective API key
+        env_key = GROQ_API_KEY
+        sidebar_key = st.session_state.get("api_key_override", "")
 
-        effective_key = ""
-        selected_model = DEFAULT_MODEL
-
-        if is_offline:
-            st.success("🔒 **Offline Mode:** Zero API calls required. Fully functional without internet or API keys.", icon="✅")
-        else:
-            st.markdown("#### 🔑 Groq API Settings")
-            env_key = GROQ_API_KEY
-            sidebar_key = st.text_input(
+        # ── Optional Groq LLM Settings Expander ───────────────────────
+        with st.expander("⚙️ Optional Groq Cloud LLM", expanded=bool(sidebar_key or env_key)):
+            st.caption("Default is the built-in Zero-API engine. Enter a Groq key here only if you wish to use cloud generative models.")
+            entered_key = st.text_input(
                 "Groq API Key",
                 type="password",
-                value=st.session_state.get("api_key_override", ""),
+                value=sidebar_key,
                 placeholder="gsk_...",
-                help="Enter your Groq API key. It remains strictly in-session.",
+                help="Optional. Leave blank to run 100% locally with zero API calls.",
             )
-            if sidebar_key:
-                st.session_state["api_key_override"] = sidebar_key
-                effective_key = sidebar_key
-                st.success("API Key set", icon="🔒")
+            if entered_key:
+                st.session_state["api_key_override"] = entered_key
+                effective_key = entered_key
             elif env_key:
                 effective_key = env_key
-                st.success("Loaded from environment", icon="🔒")
             else:
-                st.info("No API key entered. You can switch to Offline Mode or enter a key above.", icon="💡")
+                effective_key = ""
 
-            default_idx = (
-                AVAILABLE_MODELS.index(DEFAULT_MODEL)
-                if DEFAULT_MODEL in AVAILABLE_MODELS
-                else 0
-            )
             selected_model = st.selectbox(
-                "Select Model",
+                "Groq Model",
                 options=AVAILABLE_MODELS,
-                index=default_idx,
+                index=0,
             )
             st.session_state["selected_model"] = selected_model
+
+        if effective_key:
+            st.success(f"⚡ Groq Cloud Active (`{selected_model}`)", icon="🚀")
+        else:
+            effective_key = ""
+            selected_model = DEFAULT_MODEL
+            st.info("🛡️ **Zero-API Engine Active**\n\nRuns privately on your device. No API keys needed.", icon="🔒")
 
         st.divider()
 
@@ -148,14 +133,14 @@ def render_sidebar() -> tuple[str, str, bool]:
         st.divider()
         st.markdown(DISCLAIMER)
 
-    return effective_key, selected_model, is_offline
+    return effective_key, selected_model
 
 
 def main() -> None:
     init_session_state()
 
     # ── Sidebar ────────────────────────────────────────────────────────
-    api_key, selected_model, is_offline = render_sidebar()
+    api_key, selected_model = render_sidebar()
 
     # ── Main header ────────────────────────────────────────────────────
     col_title, col_badge = st.columns([3.5, 1.5])
@@ -163,37 +148,26 @@ def main() -> None:
         st.title(f"⚖️ {APP_TITLE}")
         st.caption(APP_SUBTITLE)
     with col_badge:
-        if is_offline:
+        if api_key:
             st.markdown(
-                """
-                <div style="background:#1e293b;border:1px solid #22c55e;border-radius:8px;padding:8px 12px;text-align:center;margin-top:10px;">
-                    <span style="color:#22c55e;font-weight:bold;font-size:0.85rem;">🛡️ Offline Mode Ready</span><br>
-                    <span style="color:#94a3b8;font-size:0.75rem;">No API Keys Needed</span>
+                f"""
+                <div style="background:#1e293b;border:1px solid #3b82f6;border-radius:8px;padding:8px 12px;text-align:center;margin-top:10px;">
+                    <span style="color:#3b82f6;font-weight:bold;font-size:0.85rem;">⚡ Groq Ready</span><br>
+                    <span style="color:#94a3b8;font-size:0.75rem;">{selected_model}</span>
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
         else:
-            if api_key:
-                st.markdown(
-                    f"""
-                    <div style="background:#1e293b;border:1px solid #3b82f6;border-radius:8px;padding:8px 12px;text-align:center;margin-top:10px;">
-                        <span style="color:#3b82f6;font-weight:bold;font-size:0.85rem;">⚡ Groq API Ready</span><br>
-                        <span style="color:#94a3b8;font-size:0.75rem;">{selected_model}</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-            else:
-                st.markdown(
-                    """
-                    <div style="background:#1e293b;border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;text-align:center;margin-top:10px;">
-                        <span style="color:#f59e0b;font-weight:bold;font-size:0.85rem;">⚠️ No Groq Key</span><br>
-                        <span style="color:#94a3b8;font-size:0.75rem;">Switch to Offline Mode</span>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
+            st.markdown(
+                """
+                <div style="background:#1e293b;border:1px solid #22c55e;border-radius:8px;padding:8px 12px;text-align:center;margin-top:10px;">
+                    <span style="color:#22c55e;font-weight:bold;font-size:0.85rem;">🛡️ Zero-API Engine Ready</span><br>
+                    <span style="color:#94a3b8;font-size:0.75rem;">100% Free & Private</span>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
     st.markdown("---")
 
@@ -203,12 +177,10 @@ def main() -> None:
     )
 
     with tab_audit:
-        effective_audit_key = "" if is_offline else api_key
-        render_contract_audit(api_key=effective_audit_key, model=selected_model)
+        render_contract_audit(api_key=api_key, model=selected_model)
 
     with tab_chat:
-        effective_chat_key = "" if is_offline else api_key
-        render_document_chat(api_key=effective_chat_key, model=selected_model)
+        render_document_chat(api_key=api_key, model=selected_model)
 
     with tab_trace:
         render_execution_trace()

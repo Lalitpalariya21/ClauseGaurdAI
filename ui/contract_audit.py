@@ -43,28 +43,6 @@ def render_contract_audit(api_key: str = "", model: str = "") -> None:
         "and verify text authenticity."
     )
 
-    # ── Mode Selection Banner ──────────────────────────────────────────────────
-    mode_col1, mode_col2 = st.columns([2, 1])
-    with mode_col1:
-        engine_mode = st.radio(
-            "🧠 Select Analysis Engine",
-            options=[
-                "🛡️ Offline AI Engine (No API key needed — instant, private & deterministic)",
-                "⚡ Groq Cloud LLM (Uses Groq API for generative inference)",
-            ],
-            index=0 if not api_key else 0,
-            help="Choose between the built-in local legal intelligence engine and Groq Cloud LLM.",
-        )
-    with mode_col2:
-        is_offline = "Offline AI Engine" in engine_mode
-        if is_offline:
-            st.success("🟢 **Offline Mode Active:** Zero API calls required. Runs entirely on your machine.", icon="🔒")
-        else:
-            if api_key:
-                st.success(f"⚡ **Groq Mode Active:** Model: `{model}`", icon="🚀")
-            else:
-                st.warning("⚠️ Enter a Groq API Key in the sidebar to use Groq Cloud mode, or stay in Offline Mode.", icon="🔑")
-
     st.divider()
 
     # ── Document Selection ─────────────────────────────────────────────────────
@@ -132,8 +110,8 @@ def render_contract_audit(api_key: str = "", model: str = "") -> None:
                 status_box.info(step_name)
                 time.sleep(0.15)
 
-            # Actual analysis execution
-            actual_offline = is_offline or not api_key
+            # Actual analysis execution (uses Groq if key provided, else offline engine)
+            actual_offline = not bool(api_key)
             result_state = service.process_document(
                 source=source,
                 document_name=source_name,
